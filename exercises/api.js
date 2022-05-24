@@ -199,24 +199,30 @@ async function addStrengthExercise(body) {
 // }
 
 // Get all exercises from Datastore
-function getExercises(req){
-    var q = datastore.createQuery(EXERCISE).limit(5);
-    const results = {};
+async function getExercises(req){
+    // Get total number of exercises in collection
+    const length_query = datastore.createQuery(EXERCISE);
+    const all_entities = await datastore.runQuery(length_query);
+    const length = all_entities[0].length;
+    const results = {num_total_items: length};
+
+    var query = datastore.createQuery(EXERCISE).limit(5);
+
     // Set starting cursor if one exists
     if(Object.keys(req.query).includes("cursor")){
-        q = q.start(req.query.cursor);
+        query = query.start(req.query.cursor);
     }
-    // Get all exercises
-	return datastore.runQuery(q).then( (entities) => {
-            // // Add id attribute to each exercise in array
-            // results.items = entities[0].map(db.fromDatastore);
-            // // If there are more results, generate cursor link
-            // if(entities[1].moreResults !== db.Datastore.NO_MORE_RESULTS ){
-            //     results.next = req.protocol + "://" + req.get("host") + req.baseUrl + "?cursor=" + entities[1].endCursor;
-            // }
-			// return results;
-            return entities;
-		});
+
+    // Get 5 exercises from the collection
+    const entities = await datastore.runQuery(query);
+    results.items = entities[0].map(db.fromDatastore);
+    
+    // Generate next link if there are more results
+    if (entities[1].moreResults !== db.Datastore.NO_MORE_RESULTS ) {
+        results.next = req.protocol + "://" + req.get("host") + req.baseUrl + "?cursor=" + entities[1].endCursor;
+    }
+
+    return results;
 }
 
 function addAttributes(req, entity) {
@@ -227,18 +233,31 @@ function addAttributes(req, entity) {
 }
 
 router.post('/', async (req, res) => {
-    // Verify the request body is correct
-    if (verifyBody(req, res)) {
-        // Add exercise to Datastore
-        const entity = await addStrengthExercise(req.body);
-        const exercise = addAttributes(req, entity);
-        res.status(201).send(exercise);
+    // Verify requested data format is supported
+    const accepts = req.accepts(["application/json"]);
+    if (accepts) {
+        // Verify the request body is correct
+        if (verifyBody(req, res)) {
+            // Add exercise to Datastore
+            const entity = await addStrengthExercise(req.body);
+            const exercise = addAttributes(req, entity);
+            res.status(201).send(exercise);
+        }
+    } else {
+        res.status(406).json({ "Error": "Server only supports 'application/json'"});
     }
 });
 
 router.get('/', async (req, res) => {
-    const exercises = await getExercises(req);
-    res.status(200).send(exercises);
+    // Verify requested data format is supported
+    const accepts = req.accepts(["application/json"]);
+    if (accepts) {
+        // Get exercises from Datastore
+        const exercises = await getExercises(req);
+        res.status(200).send(exercises);
+    } else {
+        res.status(406).json({ "Error": "Server only supports 'application/json'"});
+    } 
 });
 
 router.patch('/', function (req, res) {
