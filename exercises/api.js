@@ -56,55 +56,68 @@ function verifyBody(req, res) {
         return false;
     } 
 
-    // else if (req.method === "PATCH") {
-    //     let count_attr = 0
+    else if (req.method === "PATCH") {
+        let count_attr = 0
 
-    //     // Check if name attribute is specified
-    //     if (req.body.name !== undefined) {
-    //         count_attr += 1;
-    //         // Verify that name attribute is a string
-    //         if (typeof(req.body.name) !== "string") {
-    //             res.status(400).json({ "Error": "Invalid data type for name attribute, expected string" });
-    //             return false;
-    //         // Verify the attribute's content
-    //         } else if (!verify_string(req.body.name, "Name", res)) {
-    //             return false;
-    //         }
-    //     } 
+        // Check if name attribute is specified
+        if (req.body.name !== undefined) {
+            count_attr += 1;
+            // Verify that name attribute is a string
+            if (typeof(req.body.name) !== "string") {
+                res.status(400).json({ "Error": "Invalid data type for name attribute, expected string" });
+                return false;
+            // Verify the attribute's content
+            } else if (!verifyName(req.body.name, res)) {
+                return false;
+            }
+        } 
         
-    //     // Check if type attribute is specified
-    //     if (req.body.type !== undefined) {
-    //         count_attr += 1;
-    //         // Verify that type attribute is a string
-    //         if (typeof(req.body.type) !== "string") {
-    //             res.status(400).json({ "Error": "Invalid data type for type attribute, expected string" });
-    //             return false;
-    //         // Verify the attribute's content
-    //         } else if (!verify_string(req.body.type, "Type", res)) {
-    //             return false;
-    //         }
-    //     } 
+        // Check if weight attribute is specified
+        if (req.body.weight !== undefined) {
+            count_attr += 1;
+            // Verify that weight attribute is a number
+            if (typeof(req.body.weight) !== "number") {
+                res.status(400).json({ "Error": "Invalid data type for weight attribute, expected number" });
+                return false;
+            // Verify the attribute's content
+            } else if (!verifyWeight(req.body.weight, res)) {
+                return false;
+            }
+        } 
         
-    //     // Check if length attribute is specified
-    //     if (req.body.length !== undefined) {
-    //         count_attr += 1;
-    //         // Verify that length attribute is a number
-    //         if (typeof(req.body.length) !== "number") {
-    //             res.status(400).json({ "Error": "Invalid data type for length attribute, expected number" });
-    //             return false;
-    //         // Verify the attribute's content
-    //         } else if (!verify_number(req.body.length, res)) {
-    //             return false;
-    //         }
-    //     }
+        // Check if sets attribute is specified
+        if (req.body.sets !== undefined) {
+            count_attr += 1;
+            // Verify that sets attribute is a number
+            if (typeof(req.body.sets) !== "number") {
+                res.status(400).json({ "Error": "Invalid data type for sets attribute, expected number" });
+                return false;
+            // Verify the attribute's content
+            } else if (!verifySets(req.body.sets, res)) {
+                return false;
+            }
+        }
 
-    //     // Verify that there aren't extra attributes
-    //     if (Object.keys(req.body).length > count_attr) {
-    //         res.status(400).json({ "Error": "The request object has extraneous attributes" });
-    //         return false;
-    //     }
-    //     return true;
-    // }
+        // Check if reps attribute is specified
+        if (req.body.reps !== undefined) {
+            count_attr += 1;
+            // Verify that reps attribute is a number
+            if (typeof(req.body.reps) !== "number") {
+                res.status(400).json({ "Error": "Invalid data type for reps attribute, expected number" });
+                return false;
+            // Verify the attribute's content
+            } else if (!verifyReps(req.body.reps, res)) {
+                return false;
+            }
+        }
+
+        // Verify that there aren't extra attributes
+        if (Object.keys(req.body).length > count_attr) {
+            res.status(400).json({ "Error": "The request object has extraneous attributes" });
+            return false;
+        }
+        return true;
+    }
 }
 
 function verifyName(str, res) { 
@@ -159,6 +172,7 @@ function verifyReps(reps, res) {
 
 // Adds a strength exercise to Datastore
 async function addStrengthExercise(body) {
+    // Create key and store data
     const key = datastore.key(EXERCISE);
     const entity = {
       key: key,
@@ -169,13 +183,13 @@ async function addStrengthExercise(body) {
               'workouts': []
       }
     };
-  
+    
     try {
-      await datastore.save(entity);
-      console.log(`Exercise ${key.id} created successfully.`);
-      return entity;
+        // Save exercise to Datastore
+        await datastore.save(entity);
+        return entity;
     } catch (err) {
-      console.error('ERROR:', err);
+        console.error('ERROR:', err);
     }
 }
 
@@ -200,29 +214,108 @@ async function addStrengthExercise(body) {
 
 // Get all exercises from Datastore
 async function getExercises(req){
-    // Get total number of exercises in collection
-    const length_query = datastore.createQuery(EXERCISE);
-    const all_entities = await datastore.runQuery(length_query);
-    const length = all_entities[0].length;
-    const results = {num_total_items: length};
+    try {
+        // Get total number of exercises in collection
+        const length_query = datastore.createQuery(EXERCISE);
+        const all_entities = await datastore.runQuery(length_query);
+        const length = all_entities[0].length;
+        const results = {num_total_items: length};
 
-    var query = datastore.createQuery(EXERCISE).limit(5);
+        var query = datastore.createQuery(EXERCISE).limit(5);
 
-    // Set starting cursor if one exists
-    if(Object.keys(req.query).includes("cursor")){
-        query = query.start(req.query.cursor);
+        // Set starting cursor if one exists
+        if(Object.keys(req.query).includes("cursor")){
+            query = query.start(req.query.cursor);
+        }
+
+        // Get 5 exercises from the collection
+        const entities = await datastore.runQuery(query);
+        results.items = entities[0].map(db.fromDatastore);
+        
+        // Generate next link if there are more results
+        if (entities[1].moreResults !== db.Datastore.NO_MORE_RESULTS ) {
+            results.next = req.protocol + "://" + req.get("host") + req.baseUrl + "?cursor=" + entities[1].endCursor;
+        }
+
+        return results;
+    } catch (err) {
+        console.error('ERROR:', err);
+    } 
+}
+
+async function getExercise(req){
+    // Get key from ID and get exercise from Datastore
+    const key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
+    try {
+        const entity = await datastore.get(key);
+        // If there is no entity associated with this ID
+        if (entity[0] === undefined || entity[0] === null) {
+            return entity[0];
+        } else  {
+            // Create results object with self url and id
+            const exercise = entity[0];
+            exercise.id = req.params.exercise_id;
+            exercise.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + req.params.exercise_id;
+            return exercise;
+        }
+    } catch (err) {
+        console.error('ERROR:', err);
+    } 
+}
+
+async function putExercise(req) {
+    // Get key from ID and create exercise with new attributes
+    const key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
+    try {
+        await datastore.save({ "key": key, "data": req.body });
+        // Create results object with self url and id
+        const results = req.body;
+        results.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + req.params.exercise_id;
+        results.id = req.params.exercise_id
+        return results;
+    } catch (err) {
+        console.error('ERROR:', err);
     }
+}
 
-    // Get 5 exercises from the collection
-    const entities = await datastore.runQuery(query);
-    results.items = entities[0].map(db.fromDatastore);
-    
-    // Generate next link if there are more results
-    if (entities[1].moreResults !== db.Datastore.NO_MORE_RESULTS ) {
-        results.next = req.protocol + "://" + req.get("host") + req.baseUrl + "?cursor=" + entities[1].endCursor;
+async function patchExercise(req, exercise) {
+    try {
+        // Get key from ID
+        const key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
+
+        // If a new attribute is specified, replace old attribute
+        // If a new attribute is not specified, keep old attribute
+        let new_exercise = {};
+        if (req.body.name !== undefined) {
+            new_exercise.name = req.body.name;
+        } else {
+            new_exercise.name = exercise.name;
+        }
+        if (req.body.weight !== undefined) {
+            new_exercise.weight = req.body.weight;
+        } else {
+            new_exercise.weight = exercise.weight;
+        }
+        if (req.body.sets !== undefined) {
+            new_exercise.sets = req.body.sets;
+        } else {
+            new_exercise.sets = exercise.sets;
+        }
+        if (req.body.reps !== undefined) {
+            new_exercise.reps = req.body.reps;
+        } else {
+            new_exercise.reps = exercise.reps;
+        }
+
+        // Save updates to exercise and add self url + id to exercise object
+        await datastore.save({ "key": key, "data": new_exercise })
+        new_exercise.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + req.params.exercise_id;
+        new_exercise.id = req.params.exercise_id;
+        return new_exercise;
+
+    } catch (err) {
+        console.error('ERROR:', err);
     }
-
-    return results;
 }
 
 function addAttributes(req, entity) {
@@ -232,7 +325,7 @@ function addAttributes(req, entity) {
     return exercise;
 }
 
-router.post('/', async (req, res) => {
+router.post('/', async function (req, res) {
     // Verify requested data format is supported
     const accepts = req.accepts(["application/json"]);
     if (accepts) {
@@ -248,7 +341,7 @@ router.post('/', async (req, res) => {
     }
 });
 
-router.get('/', async (req, res) => {
+router.get('/', async function (req, res) {
     // Verify requested data format is supported
     const accepts = req.accepts(["application/json"]);
     if (accepts) {
@@ -273,6 +366,66 @@ router.put('/', function (req, res) {
 router.delete('/', function (req, res) {
     res.set('Accept', 'GET, POST');
     res.status(405).end();
+});
+
+// Get an exercise by its ID
+router.get('/:exercise_id', async function (req, res) {
+    // Verify requested data format is supported
+    const accepts = req.accepts(["application/json"]);
+    if (accepts) {
+        // Get exercise from Datastore
+        const exercise = await getExercise(req);
+        if (exercise === undefined || exercise === null) {
+            res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
+        }
+        res.status(200).send(exercise);
+    } else {
+        res.status(406).json({ "Error": "Server only supports 'application/json'"});
+    }
+});
+
+// Edit all attributes of an exercise
+router.put('/:exercise_id', async function (req, res) {
+    // Verify requested data format is supported
+    const accepts = req.accepts(["application/json"]);
+    if (accepts) {
+        // Get exercise from Datastore
+        const exercise = await getExercise(req);
+        if (exercise === undefined || exercise === null) {
+            res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
+        
+        // Verify request body is correct
+        } else if (verifyBody(req, res)) {
+            
+            // Add exercise to Datastore
+            const new_exercise = await putExercise(req);
+            res.status(200).send(new_exercise);
+        }
+    } else {
+        res.status(406).json({ "Error": "Server only supports 'application/json'"});
+    }
+});
+
+// Edit some attributes of an exercise
+router.patch('/:exercise_id', async function (req, res) {
+    // Verify requested data format is supported
+    const accepts = req.accepts(["application/json"]);
+    if (accepts) {
+        // Get exercise from Datastore
+        const exercise = await getExercise(req);
+        if (exercise === undefined || exercise === null) {
+            res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
+        
+        // Verify request body is correct
+        } else if (verifyBody(req, res)) {
+            
+            // Add exercise to Datastore
+            const new_exercise = await patchExercise(req, exercise);
+            res.status(200).send(new_exercise);
+        }
+    } else {
+        res.status(406).json({ "Error": "Server only supports 'application/json'"});
+    }
 });
 
 module.exports = router;
