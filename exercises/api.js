@@ -318,6 +318,16 @@ async function patchExercise(req, exercise) {
     }
 }
 
+async function deleteExercise(req) {
+    try {
+        // Get key from ID
+        const key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
+        datastore.delete(key);
+    } catch (err) {
+        console.error('ERROR:', err);
+    } 
+}
+
 function addAttributes(req, entity) {
     const exercise = entity.data;
     exercise.id = entity.key.id;
@@ -325,6 +335,7 @@ function addAttributes(req, entity) {
     return exercise;
 }
 
+// Create a new exercise
 router.post('/', async function (req, res) {
     // Verify requested data format is supported
     const accepts = req.accepts(["application/json"]);
@@ -341,6 +352,7 @@ router.post('/', async function (req, res) {
     }
 });
 
+// Get all exercises
 router.get('/', async function (req, res) {
     // Verify requested data format is supported
     const accepts = req.accepts(["application/json"]);
@@ -427,5 +439,25 @@ router.patch('/:exercise_id', async function (req, res) {
         res.status(406).json({ "Error": "Server only supports 'application/json'"});
     }
 });
+
+// Delete an exercise
+router.delete('/:exercise_id', async function (req, res) {
+    // Verify exercise exists
+    const exercise = await getExercise(req);
+    if (exercise === undefined || exercise === null) {
+        res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
+    } else {
+        // Delete exercise
+        await deleteExercise(req);
+        res.status(204).end();
+    }
+});
+
+router.post('/:exercise_id', function (req, res) {
+    res.set('Accept', 'GET, PUT, PATCH, DELETE');
+    res.status(405).end();
+});
+
+
 
 module.exports = router;
