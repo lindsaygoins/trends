@@ -12,10 +12,6 @@ const datastore = db.datastore;
 
 const EXERCISE = "Exercise";
 
-function generate_self_url(req, entity) {
-    // Generate self URL
-    return req.protocol + "://" + req.get('host') + req.baseUrl + '/' + entity.key.id;
-}
 
 function verifyBody(req, res) {
     // Verify that request is in JSON format
@@ -171,23 +167,25 @@ function verifyReps(reps, res) {
 }
 
 // Adds a strength exercise to Datastore
-async function addStrengthExercise(body) {
+async function addStrengthExercise(req) {
     // Create key and store data
     const key = datastore.key(EXERCISE);
     const entity = {
       key: key,
-      data: { 'name': body.name,
-              'weight': body.weight,
-              'sets': body.sets,
-              'reps': body.reps,
+      data: { 'name': req.body.name,
+              'weight': req.body.weight,
+              'sets': req.body.sets,
+              'reps': req.body.reps,
               'workouts': []
-      }
+            }
     };
     
     try {
         // Save exercise to Datastore
         await datastore.save(entity);
-        return entity;
+        entity.data.id = key.id;
+        entity.data.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + key.id;
+        return entity.data;
     } catch (err) {
         console.error('ERROR:', err);
     }
@@ -243,6 +241,7 @@ async function getExercises(req){
     } 
 }
 
+// Get a single exercise from Datastore
 async function getExercise(req){
     // Get key from ID and get exercise from Datastore
     const key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
@@ -263,6 +262,7 @@ async function getExercise(req){
     } 
 }
 
+// Edit all attributes of an exercise in Datastore
 async function putExercise(req) {
     // Get key from ID and create exercise with new attributes
     const key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
@@ -278,6 +278,7 @@ async function putExercise(req) {
     }
 }
 
+// Edit some attributes of an exercise in Datastore
 async function patchExercise(req, exercise) {
     try {
         // Get key from ID
@@ -318,6 +319,7 @@ async function patchExercise(req, exercise) {
     }
 }
 
+// Delete an exercise from Datastore
 async function deleteExercise(req) {
     try {
         // Get key from ID
@@ -328,13 +330,6 @@ async function deleteExercise(req) {
     } 
 }
 
-function addAttributes(req, entity) {
-    const exercise = entity.data;
-    exercise.id = entity.key.id;
-    exercise.self = generate_self_url(req, entity);
-    return exercise;
-}
-
 // Create a new exercise
 router.post('/', async function (req, res) {
     // Verify requested data format is supported
@@ -343,8 +338,8 @@ router.post('/', async function (req, res) {
         // Verify the request body is correct
         if (verifyBody(req, res)) {
             // Add exercise to Datastore
-            const entity = await addStrengthExercise(req.body);
-            const exercise = addAttributes(req, entity);
+            const exercise = await addStrengthExercise(req);
+            // const exercise = addAttributes(req, entity);
             res.status(201).send(exercise);
         }
     } else {
@@ -408,7 +403,6 @@ router.put('/:exercise_id', async function (req, res) {
         
         // Verify request body is correct
         } else if (verifyBody(req, res)) {
-            
             // Add exercise to Datastore
             const new_exercise = await putExercise(req);
             res.status(200).send(new_exercise);
@@ -430,7 +424,6 @@ router.patch('/:exercise_id', async function (req, res) {
         
         // Verify request body is correct
         } else if (verifyBody(req, res)) {
-            
             // Add exercise to Datastore
             const new_exercise = await patchExercise(req, exercise);
             res.status(200).send(new_exercise);
@@ -457,7 +450,5 @@ router.post('/:exercise_id', function (req, res) {
     res.set('Accept', 'GET, PUT, PATCH, DELETE');
     res.status(405).end();
 });
-
-
 
 module.exports = router;
