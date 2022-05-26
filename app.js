@@ -18,13 +18,14 @@ var bodyParser = require('body-parser');
 app.use(bodyParser.urlencoded({ extended: true }));
 app.use(bodyParser.json());
 
+// Users
 app.use('/', require('./users/login'));
-
-// Workouts
-app.use('/api/workouts', require('./workouts/api'));
 
 // Exercises
 app.use('/api/exercises', require('./exercises/api'));
+
+// Workouts
+app.use('/api/workouts', require('./workouts/api'));
 
 // Start the server
 const port = process.env.PORT || 8080;

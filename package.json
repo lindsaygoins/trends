@@ -8,6 +8,7 @@
     "body-parser": "^1.20.0",
     "express": "^4.17.1",
     "express-handlebars": "^6.0.6",
+    "google-auth-library": "^8.0.2",
     "path": "^0.12.7"
   },
   "scripts": {
