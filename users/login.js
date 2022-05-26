@@ -13,6 +13,7 @@ router.get('/', function (req, res) {
 });
 
 router.post('/user', function (req, res) {
+    console.log(req.body.credential)
     res.json(req.body);
 });
 
