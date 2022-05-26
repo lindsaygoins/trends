@@ -3,8 +3,18 @@
 const express = require('express');
 const app = express();
 
+// Put this statement near the top of your module
+var bodyParser = require('body-parser');
+
+
+// Put these statements before you define any routes.
+app.use(bodyParser.urlencoded({ extended: true }));
+app.use(bodyParser.json());
+
+app.use('/', require('./users/login'));
+
 // Workouts
-// app.use('/api/workouts', require('./workouts/api'));
+app.use('/api/workouts', require('./workouts/api'));
 
 // Exercises
 app.use('/api/exercises', require('./exercises/api'));
