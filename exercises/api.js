@@ -263,11 +263,13 @@ async function getExercise(req){
 }
 
 // Edit all attributes of an exercise in Datastore
-async function putExercise(req) {
+async function putExercise(req, exercise) {
     // Get key from ID and create exercise with new attributes
     const key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
     try {
-        await datastore.save({ "key": key, "data": req.body });
+        const data = req.body;
+        data.workouts = exercise.workouts;
+        await datastore.save({ "key": key, "data": data });
         // Create results object with self url and id
         const results = req.body;
         results.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + req.params.exercise_id;
@@ -307,6 +309,8 @@ async function patchExercise(req, exercise) {
         } else {
             new_exercise.reps = exercise.reps;
         }
+
+        new_exercise.workouts = exercise.workouts;
 
         // Save updates to exercise and add self url + id to exercise object
         await datastore.save({ "key": key, "data": new_exercise })
@@ -404,7 +408,7 @@ router.put('/:exercise_id', async function (req, res) {
         // Verify request body is correct
         } else if (verifyBody(req, res)) {
             // Add exercise to Datastore
-            const new_exercise = await putExercise(req);
+            const new_exercise = await putExercise(req, exercise);
             res.status(200).send(new_exercise);
         }
     } else {
