@@ -258,32 +258,21 @@ async function patchWorkout(req, workout) {
         const key = datastore.key([WORKOUT, parseInt(req.params.workout_id, 10)]);
 
         // If a new attribute is specified, replace old attribute
-        // If a new attribute is not specified, keep old attribute
-        let new_workout = {};
         if (req.body.length !== undefined) {
-            new_workout.length = req.body.length;
-        } else {
-            new_workout.length = workout.length;
+            workout.length = req.body.length;
         }
         if (req.body.heartrate !== undefined) {
-            new_workout.heartrate = req.body.heartrate;
-        } else {
-            new_workout.heartrate = workout.heartrate;
+            workout.heartrate = req.body.heartrate;
         }
         if (req.body.date !== undefined) {
-            new_workout.date = req.body.date;
-        } else {
-            new_workout.date = workout.date;
+            workout.date = req.body.date;
         }
 
-        new_workout.exercises = workout.exercises;
-        new_workout.owner = workout.owner;
-
         // Save updates to workout and add self url + id to workout object
-        await datastore.save({ "key": key, "data": new_workout })
-        new_workout.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + req.params.workout_id;
-        new_workout.id = req.params.workout_id;
-        return new_workout;
+        await datastore.save({ "key": key, "data": workout })
+        workout.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + req.params.workout_id;
+        workout.id = req.params.workout_id;
+        return workout;
 
     } catch (err) {
         console.error('ERROR:', err);
