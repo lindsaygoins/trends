@@ -122,7 +122,6 @@ function verifyBody(req, res) {
         }
         return true;
     }
-
 }
 
 function verifyLength(length, res) {
@@ -155,6 +154,15 @@ function verifyDate(date, res) {
     }
 }
 
+function verifyRelationship(req, workout, exercise) {
+    // Check if workout is associated with exercise and exercise is associated with workout
+    if (workout.exercises.includes(req.params.exercise_id) && exercise.workouts.includes(req.params.workout_id)) {
+        return true;
+    } else {
+        return false;
+    }
+}
+
 // Adds a workout to Datastore
 async function addWorkout(req, jwt_data) {
     // Create key and store data
@@ -168,7 +176,6 @@ async function addWorkout(req, jwt_data) {
               'exercises': []
             }
     };
-    
     try {
         // Save workout to Datastore
         await datastore.save(entity);
@@ -204,7 +211,6 @@ async function getWorkouts(req, jwt_data){
         if (entities[1].moreResults !== db.Datastore.NO_MORE_RESULTS ) {
             results.next = req.protocol + "://" + req.get("host") + req.baseUrl + "?cursor=" + entities[1].endCursor;
         }
-
         return results;
     } catch (err) {
         console.error('ERROR:', err);
@@ -240,8 +246,9 @@ async function putWorkout(req, workout) {
         const data = req.body;
         data.exercises = workout.exercises;
         data.owner = workout.owner;
+
+        // Save updates to workout and add self url + id to workout object
         await datastore.save({ "key": key, "data": data });
-        // Create results object with self url and id
         const results = req.body;
         results.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + req.params.workout_id;
         results.id = req.params.workout_id
@@ -273,7 +280,6 @@ async function patchWorkout(req, workout) {
         workout.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + req.params.workout_id;
         workout.id = req.params.workout_id;
         return workout;
-
     } catch (err) {
         console.error('ERROR:', err);
     }
@@ -285,7 +291,7 @@ async function addExercisetoWorkout(req, workout, exercise) {
     const workout_key = datastore.key([WORKOUT, parseInt(req.params.workout_id, 10)]);
     const exercise_key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
     try {
-        // Add exercise to workout and workout to exercise
+        // Add exercise to workout and workout to exercise in Datastore
         exercise.workouts.push(req.params.workout_id);
         workout.exercises.push(req.params.exercise_id);
         await datastore.save({ "key": workout_key, "data": workout });
@@ -295,8 +301,40 @@ async function addExercisetoWorkout(req, workout, exercise) {
     }
 }
 
-async function removeExercisefromWorkout(req) {
+// Delete exercise from workout and workout from exercise in Datastore
+async function removeExercisefromWorkout(req, workout, exercise) {
+    // Get key from ID and create workout with new attributes
+    const workout_key = datastore.key([WORKOUT, parseInt(req.params.workout_id, 10)]);
+    const exercise_key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
+    try {
+        // Remove workout from exercise and exercise from workout in Datastore
+        exercise.workouts = exercise.workouts.filter(workout => workout != req.params.workout_id);
+        workout.exercises = workout.exercises.filter(exercise => exercise != req.params.exercise_id);
+        await datastore.save({ "key": workout_key, "data": workout });
+        await datastore.save({ "key": exercise_key, "data": exercise });
+    } catch (err) {
+        console.error('ERROR:', err);
+    }
+}
 
+// Delete a workout from Datastore
+async function deleteWorkout(req, workout) {
+    try {
+        // Remove workout id from each exercise    
+        workout.exercises.forEach(async function (exercise_id) {
+            const exercise_key = datastore.key([EXERCISE, parseInt(exercise_id, 10)]);
+            const entity = await datastore.get(exercise_key);
+            const exercise = entity[0];
+            exercise.workouts = exercise.workouts.filter(workout => workout != req.params.workout_id);
+            await datastore.save({ "key": exercise_key, "data": exercise });
+        });
+
+        // Get key from ID and delete workout
+        const key = datastore.key([WORKOUT, parseInt(req.params.workout_id, 10)]);
+        datastore.delete(key);
+    } catch (err) {
+        console.error('ERROR:', err);
+    } 
 }
 
 // Create a new workout
@@ -479,18 +517,33 @@ router.patch('/:workout_id', async function (req, res) {
 
 // Delete a workout
 router.delete('/:workout_id', async function (req, res) {
-    // GET WORKOUT HERE
-    // // Verify exercise exists
-    // const exercise = await getExercise(req);
-    // if (exercise === undefined || exercise === null) {
-    //     res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
-    // } else {
-
-            // DELETE WORKOUT HERE
-    //     // Delete exercise
-    //     await deleteExercise(req);
-    //     res.status(204).end();
-    // }
+    // Verify that valid JWT was provided
+    if (req.headers.authorization !== undefined) {
+        const jwt = parseJWT(req.headers.authorization);
+        const jwt_data = await verify(jwt).catch(console.error);
+        
+        if (jwt_data === undefined || jwt_data === null) {
+            res.status(400).json({"Error": "Invalid JWT"});
+        
+        } else {
+            // Get workout and exercise from Datastore
+            const workout = await getWorkout(req);
+            if (workout === undefined || workout === null) {
+                res.status(404).json({ "Error": "No workout with this workout_id exists" });
+            
+            // Verify user is authorized to access this workout
+            } else if (workout.owner !== jwt_data.sub) {
+                res.status(403).json({"Error": "Unauthorized"});
+                
+            } else {
+                // Remove the exercise from the workout
+                await deleteWorkout(req, workout);
+                res.status(204).end();
+            }
+        }    
+    } else {
+        res.status(401).json({"Error": "Unauthenticated"});
+    }
 });
 
 router.post('/:workout_id', function (req, res) {
@@ -498,6 +551,7 @@ router.post('/:workout_id', function (req, res) {
     res.status(405).end();
 });
 
+// Add relationship between workout and exercise
 router.put('/:workout_id/exercises/:exercise_id', async function (req, res) {
     // Verify that valid JWT was provided
     if (req.headers.authorization !== undefined) {
@@ -520,7 +574,10 @@ router.put('/:workout_id/exercises/:exercise_id', async function (req, res) {
             // Verify user is authorized to access this workout
             } else if (workout.owner !== jwt_data.sub) {
                 res.status(403).json({"Error": "Unauthorized"});
-            
+
+            } else if (verifyRelationship(req, workout, exercise)) {
+                res.status(404).json({ "Error": "The exercise with this exercise_id is already associated with a workout with this workout_id" });
+
             } else {
                 // Add the exercise to the workout
                 await addExercisetoWorkout(req, workout, exercise);
@@ -532,8 +589,42 @@ router.put('/:workout_id/exercises/:exercise_id', async function (req, res) {
     }
 });
 
+// Remove relationship between workout and exercise
 router.delete('/:workout_id/exercises/:exercise_id', async function (req, res) {
-    res.send("hi")
+    // Verify that valid JWT was provided
+    if (req.headers.authorization !== undefined) {
+        const jwt = parseJWT(req.headers.authorization);
+        const jwt_data = await verify(jwt).catch(console.error);
+        
+        if (jwt_data === undefined || jwt_data === null) {
+            res.status(400).json({"Error": "Invalid JWT"});
+        
+        } else {
+            // Get workout and exercise from Datastore
+            const workout = await getWorkout(req);
+            const exercise = await ex.getExercise(req);
+            if (workout === undefined || workout === null) {
+                res.status(404).json({ "Error": "No workout with this workout_id exists" });
+            
+            } else if (exercise === undefined || exercise === null) {
+                res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
+            
+            // Verify user is authorized to access this workout
+            } else if (workout.owner !== jwt_data.sub) {
+                res.status(403).json({"Error": "Unauthorized"});
+                
+            } else if (!verifyRelationship(req, workout, exercise)) {
+                res.status(404).json({ "Error": "No exercise with this exercise_id is associated with a workout with this workout_id" });
+
+            } else {
+                // Remove the exercise from the workout
+                await removeExercisefromWorkout(req, workout, exercise);
+                res.status(204).end();
+            }
+        }    
+    } else {
+        res.status(401).json({"Error": "Unauthenticated"});
+    }
 });
 
 module.exports = {

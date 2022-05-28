@@ -242,7 +242,6 @@ async function getExercises(req){
 }
 
 // Get a single exercise from Datastore
-//module.exports.getExercise = 
 async function getExercise(req){
     // Get key from ID and get exercise from Datastore
     const key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
