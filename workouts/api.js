@@ -229,6 +229,46 @@ async function getWorkouts(req, jwt_data){
     } 
 }
 
+// Get a single workout from Datastore
+async function getWorkout(req){
+    // Get key from ID and get workout from Datastore
+    const key = datastore.key([WORKOUT, parseInt(req.params.workout_id, 10)]);
+    try {
+        const entity = await datastore.get(key);
+        // If there is no entity associated with this ID
+        if (entity[0] === undefined || entity[0] === null) {
+            return entity[0];
+        } else  {
+            // Create results object with self url and id
+            const exercise = entity[0];
+            exercise.id = req.params.workout_id;
+            exercise.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + req.params.workout_id;
+            return exercise;
+        }
+    } catch (err) {
+        console.error('ERROR:', err);
+    } 
+}
+
+// Edit all attributes of a workout in Datastore
+async function putWorkout(req, workout) {
+    // Get key from ID and create workout with new attributes
+    const key = datastore.key([WORKOUT, parseInt(req.params.workout_id, 10)]);
+    try {
+        const data = req.body;
+        data.exercises = workout.exercises;
+        data.owner = workout.owner;
+        await datastore.save({ "key": key, "data": data });
+        // Create results object with self url and id
+        const results = req.body;
+        results.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + req.params.workout_id;
+        results.id = req.params.workout_id
+        return results;
+    } catch (err) {
+        console.error('ERROR:', err);
+    }
+}
+
 // Create a new workout
 router.post('/', async function (req, res) {
     // Verify requested data format is supported
@@ -302,13 +342,30 @@ router.get('/:workout_id', async function (req, res) {
     // Verify requested data format is supported
     const accepts = req.accepts(["application/json"]);
     if (accepts) {
-        // GET WORKOUT HERE
-        // // Get exercise from Datastore
-        // const exercise = await getExercise(req);
-        // if (exercise === undefined || exercise === null) {
-        //     res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
-        // }
-        // res.status(200).send(exercise);
+        // Verify that valid JWT was provided
+        if (req.headers.authorization !== undefined) {
+            const jwt = parseJWT(req.headers.authorization);
+            const jwt_data = await verify(jwt).catch(console.error);
+            
+            if (jwt_data === undefined || jwt_data === null) {
+                res.status(400).json({"Error": "Invalid JWT"});
+            
+            } else {
+                // Get workout from Datastore
+                const workout = await getWorkout(req);
+                if (workout === undefined || workout === null) {
+                    res.status(404).json({ "Error": "No workout with this workout_id exists" });
+                
+                // Verify user is authorized to access this workout
+                } else if (workout.owner !== jwt_data.sub) {
+                    res.status(403).json({"Error": "Unauthorized"});
+                } else {
+                    res.status(200).send(workout);
+                }
+            }    
+        } else {
+            res.status(401).json({"Error": "Unauthenticated"});
+        }
     } else {
         res.status(406).json({ "Error": "Server only supports 'application/json'"});
     }
@@ -319,19 +376,34 @@ router.put('/:workout_id', async function (req, res) {
     // Verify requested data format is supported
     const accepts = req.accepts(["application/json"]);
     if (accepts) {
-        // GET WORKOUT HERE
-        // // Get exercise from Datastore
-        // const exercise = await getExercise(req);
-        // if (exercise === undefined || exercise === null) {
-        //     res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
-        
-        // EDIT WORKOUT HERE
-        // // Verify request body is correct
-        // } else if (verifyBody(req, res)) {
-        //     // Add exercise to Datastore
-        //     const new_exercise = await putExercise(req);
-        //     res.status(200).send(new_exercise);
-        // }
+        // Verify that valid JWT was provided
+        if (req.headers.authorization !== undefined) {
+            const jwt = parseJWT(req.headers.authorization);
+            const jwt_data = await verify(jwt).catch(console.error);
+            
+            if (jwt_data === undefined || jwt_data === null) {
+                res.status(400).json({"Error": "Invalid JWT"});
+            
+            } else {
+                // Get workout from Datastore
+                const workout = await getWorkout(req);
+                if (workout === undefined || workout === null) {
+                    res.status(404).json({ "Error": "No workout with this workout_id exists" });
+                
+                // Verify user is authorized to access this workout
+                } else if (workout.owner !== jwt_data.sub) {
+                    res.status(403).json({"Error": "Unauthorized"});
+                
+                // Verify the body of the request
+                } else if (verifyBody(req, res)) {
+                    // Save the workout to Datastore
+                    const new_workout = await putWorkout(req, workout);
+                    res.status(200).send(new_workout);
+                }
+            }    
+        } else {
+            res.status(401).json({"Error": "Unauthenticated"});
+        }
     } else {
         res.status(406).json({ "Error": "Server only supports 'application/json'"});
     }
