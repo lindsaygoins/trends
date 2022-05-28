@@ -11,7 +11,7 @@ router.use(bodyParser.json());
 const datastore = db.datastore;
 
 const EXERCISE = "Exercise";
-
+const WORKOUT = "Workout";
 
 function verifyBody(req, res) {
     // Verify that request is in JSON format
@@ -191,25 +191,6 @@ async function addStrengthExercise(req) {
     }
 }
 
-// Add cardio functionality later
-// async function addCardioExercise(body) {
-//     const key = datastore.key(EXERCISE);
-//     const entity = {
-//       key: key,
-//       data: { 'name': body.name,
-//               'distance': body.distance
-//       }
-//     };
-  
-//     try {
-//       await datastore.save(entity);
-//       console.log(`Exercise ${key.id} created successfully.`);
-//       return entity;
-//     } catch (err) {
-//       console.error('ERROR:', err);
-//     }
-// }
-
 // Get all exercises from Datastore
 async function getExercises(req){
     try {
@@ -234,7 +215,6 @@ async function getExercises(req){
         if (entities[1].moreResults !== db.Datastore.NO_MORE_RESULTS ) {
             results.next = req.protocol + "://" + req.get("host") + req.baseUrl + "?cursor=" + entities[1].endCursor;
         }
-
         return results;
     } catch (err) {
         console.error('ERROR:', err);
@@ -306,18 +286,26 @@ async function patchExercise(req, exercise) {
         exercise.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + req.params.exercise_id;
         exercise.id = req.params.exercise_id;
         return exercise;
-
     } catch (err) {
         console.error('ERROR:', err);
     }
 }
 
 // Delete an exercise from Datastore
-async function deleteExercise(req) {
+async function deleteExercise(req, exercise) {
     try {
+        // Remove workout id from each exercise    
+        exercise.workouts.forEach(async function (workout_id) {
+            const workout_key = datastore.key([WORKOUT, parseInt(workout_id, 10)]);
+            const entity = await datastore.get(workout_key);
+            const workout = entity[0];
+            workout.exercises = workout.exercises.filter(exercise => exercise != req.params.exercise_id);
+            await datastore.save({ "key": workout_key, "data": workout });
+        });
+
         // Get key from ID
         const key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
-        datastore.delete(key);
+        await datastore.delete(key);
     } catch (err) {
         console.error('ERROR:', err);
     } 
@@ -434,7 +422,7 @@ router.delete('/:exercise_id', async function (req, res) {
         res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
     } else {
         // Delete exercise
-        await deleteExercise(req);
+        await deleteExercise(req, exercise);
         res.status(204).end();
     }
 });

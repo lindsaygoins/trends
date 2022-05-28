@@ -331,7 +331,7 @@ async function deleteWorkout(req, workout) {
 
         // Get key from ID and delete workout
         const key = datastore.key([WORKOUT, parseInt(req.params.workout_id, 10)]);
-        datastore.delete(key);
+        await datastore.delete(key);
     } catch (err) {
         console.error('ERROR:', err);
     } 
