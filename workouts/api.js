@@ -276,7 +276,7 @@ async function patchWorkout(req, workout) {
             new_workout.date = workout.date;
         }
 
-        new_workout.workouts = workout.workouts;
+        new_workout.exercises = workout.exercises;
         new_workout.owner = workout.owner;
 
         // Save updates to workout and add self url + id to workout object
@@ -510,43 +510,37 @@ router.post('/:workout_id', function (req, res) {
 });
 
 router.put('/:workout_id/exercises/:exercise_id', async function (req, res) {
-        // Verify requested data format is supported
-        const accepts = req.accepts(["application/json"]);
-        if (accepts) {
-            // Verify that valid JWT was provided
-            if (req.headers.authorization !== undefined) {
-                const jwt = parseJWT(req.headers.authorization);
-                const jwt_data = await verify(jwt).catch(console.error);
-                
-                if (jwt_data === undefined || jwt_data === null) {
-                    res.status(400).json({"Error": "Invalid JWT"});
-                
-                } else {
-                    // Get workout and exercise from Datastore
-                    const workout = await getWorkout(req);
-                    const exercise = await ex.getExercise(req);
-                    if (workout === undefined || workout === null) {
-                        res.status(404).json({ "Error": "No workout with this workout_id exists" });
-                    
-                    } else if (exercise === undefined || exercise === null) {
-                        res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
-                    
-                    // Verify user is authorized to access this workout
-                    } else if (workout.owner !== jwt_data.sub) {
-                        res.status(403).json({"Error": "Unauthorized"});
-                    
-                    } else {
-                        // Add the exercise to the workout
-                        await addExercisetoWorkout(req, workout, exercise);
-                        res.status(200).end();
-                    }
-                }    
-            } else {
-                res.status(401).json({"Error": "Unauthenticated"});
-            }
+    // Verify that valid JWT was provided
+    if (req.headers.authorization !== undefined) {
+        const jwt = parseJWT(req.headers.authorization);
+        const jwt_data = await verify(jwt).catch(console.error);
+        
+        if (jwt_data === undefined || jwt_data === null) {
+            res.status(400).json({"Error": "Invalid JWT"});
+        
         } else {
-            res.status(406).json({ "Error": "Server only supports 'application/json'"});
-        }
+            // Get workout and exercise from Datastore
+            const workout = await getWorkout(req);
+            const exercise = await ex.getExercise(req);
+            if (workout === undefined || workout === null) {
+                res.status(404).json({ "Error": "No workout with this workout_id exists" });
+            
+            } else if (exercise === undefined || exercise === null) {
+                res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
+            
+            // Verify user is authorized to access this workout
+            } else if (workout.owner !== jwt_data.sub) {
+                res.status(403).json({"Error": "Unauthorized"});
+            
+            } else {
+                // Add the exercise to the workout
+                await addExercisetoWorkout(req, workout, exercise);
+                res.status(200).end();
+            }
+        }    
+    } else {
+        res.status(401).json({"Error": "Unauthenticated"});
+    }
 });
 
 router.delete('/:workout_id/exercises/:exercise_id', async function (req, res) {
