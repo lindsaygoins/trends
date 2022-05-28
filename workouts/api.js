@@ -269,6 +269,45 @@ async function putWorkout(req, workout) {
     }
 }
 
+// Edit some attributes of a workout in Datastore
+async function patchWorkout(req, workout) {
+    try {
+        // Get key from ID
+        const key = datastore.key([WORKOUT, parseInt(req.params.workout_id, 10)]);
+
+        // If a new attribute is specified, replace old attribute
+        // If a new attribute is not specified, keep old attribute
+        let new_workout = {};
+        if (req.body.length !== undefined) {
+            new_workout.length = req.body.length;
+        } else {
+            new_workout.length = workout.length;
+        }
+        if (req.body.heartrate !== undefined) {
+            new_workout.heartrate = req.body.heartrate;
+        } else {
+            new_workout.heartrate = workout.heartrate;
+        }
+        if (req.body.date !== undefined) {
+            new_workout.date = req.body.date;
+        } else {
+            new_workout.date = workout.date;
+        }
+
+        new_workout.workouts = workout.workouts;
+        new_workout.owner = workout.owner;
+
+        // Save updates to workout and add self url + id to workout object
+        await datastore.save({ "key": key, "data": new_workout })
+        new_workout.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + req.params.workout_id;
+        new_workout.id = req.params.workout_id;
+        return new_workout;
+
+    } catch (err) {
+        console.error('ERROR:', err);
+    }
+}
+
 // Create a new workout
 router.post('/', async function (req, res) {
     // Verify requested data format is supported
@@ -414,19 +453,34 @@ router.patch('/:workout_id', async function (req, res) {
     // Verify requested data format is supported
     const accepts = req.accepts(["application/json"]);
     if (accepts) {
-        // GET WORKOUT HERE
-        // // Get exercise from Datastore
-        // const exercise = await getExercise(req);
-        // if (exercise === undefined || exercise === null) {
-        //     res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
-        
-        // EDIT WORKOUT HERE
-        // // Verify request body is correct
-        // } else if (verifyBody(req, res)) {
-        //     // Add exercise to Datastore
-        //     const new_exercise = await patchExercise(req, exercise);
-        //     res.status(200).send(new_exercise);
-        // }
+        // Verify that valid JWT was provided
+        if (req.headers.authorization !== undefined) {
+            const jwt = parseJWT(req.headers.authorization);
+            const jwt_data = await verify(jwt).catch(console.error);
+            
+            if (jwt_data === undefined || jwt_data === null) {
+                res.status(400).json({"Error": "Invalid JWT"});
+            
+            } else {
+                // Get workout from Datastore
+                const workout = await getWorkout(req);
+                if (workout === undefined || workout === null) {
+                    res.status(404).json({ "Error": "No workout with this workout_id exists" });
+                
+                // Verify user is authorized to access this workout
+                } else if (workout.owner !== jwt_data.sub) {
+                    res.status(403).json({"Error": "Unauthorized"});
+                
+                // Verify the body of the request
+                } else if (verifyBody(req, res)) {
+                    // Save the workout to Datastore
+                    const new_workout = await patchWorkout(req, workout);
+                    res.status(200).send(new_workout);
+                }
+            }    
+        } else {
+            res.status(401).json({"Error": "Unauthenticated"});
+        }
     } else {
         res.status(406).json({ "Error": "Server only supports 'application/json'"});
     }
