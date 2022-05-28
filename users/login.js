@@ -60,7 +60,7 @@ async function getUser(user_id) {
 async function getUsers() {
     const query = datastore.createQuery(USER);
     const entity = await datastore.runQuery(query);
-    return entity[0]
+    return entity[0];
 }
 
 // Login page
@@ -76,7 +76,8 @@ router.post('/', async function (req, res) {
 
     // See if user account exists, if not, create a user
     const user = await getUser(user_id);
-    if (user === undefined || user === null) {
+    console.log(user)
+    if (user === undefined || user === null || user.length == 0) {
         await createUser(payload);
     }
 
