@@ -3,6 +3,7 @@
 const express = require('express');
 const bodyParser = require('body-parser');
 const db = require('../datastore');
+const ex = require('../exercises/api.js');
 
 const router = express.Router();
 
@@ -13,6 +14,7 @@ const validateDate = require("validate-date");
 const datastore = db.datastore;
 
 const WORKOUT = "Workout";
+const EXERCISE = "Exercise";
 
 const CLIENT_ID = "1032047830318-3uh58rtmdlaidbo4dqerrvpbmvkgaaee.apps.googleusercontent.com";
 
@@ -142,26 +144,6 @@ function verifyHeartrate(heartrate, res) {
         return false;
     }
 }
-
-// function parseDate(date) {
-//     const parsed_date = date.split('/');
-//     if (parsed_date.length === 3) {
-//         const day_str = parsed_date[0];
-//         const month_str = parsed_date[1];
-//         const year_str = parsed_date[2];
-
-//         const day = parseInt(day_str);
-//         const month = parseInt(month_str);
-//         const year = parseInt(year_str);
-        
-//         if (!isNaN(day) && !isNaN(month) && !isNaN(year) && day > 0 && day < 32 && month > 0 && month < 13 && year > 1900 && year < 2030) {
-//             return [day, month, year];
-
-//         }
-//     }
-//     res.status(400).json({"Error": "Incorrect date format"});
-//     return false;
-// }
 
 function verifyDate(date, res) {
     // Check if date is a valid date
@@ -306,6 +288,26 @@ async function patchWorkout(req, workout) {
     } catch (err) {
         console.error('ERROR:', err);
     }
+}
+
+// Add exercise to workout and workout to exercise in Datastore
+async function addExercisetoWorkout(req, workout, exercise) {
+    // Get key from ID and create workout with new attributes
+    const workout_key = datastore.key([WORKOUT, parseInt(req.params.workout_id, 10)]);
+    const exercise_key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
+    try {
+        // Add exercise to workout and workout to exercise
+        exercise.workouts.push(req.params.workout_id);
+        workout.exercises.push(req.params.exercise_id);
+        await datastore.save({ "key": workout_key, "data": workout });
+        await datastore.save({ "key": exercise_key, "data": exercise });
+    } catch (err) {
+        console.error('ERROR:', err);
+    }
+}
+
+async function removeExercisefromWorkout(req) {
+
 }
 
 // Create a new workout
@@ -507,4 +509,50 @@ router.post('/:workout_id', function (req, res) {
     res.status(405).end();
 });
 
-module.exports = router;
+router.put('/:workout_id/exercises/:exercise_id', async function (req, res) {
+        // Verify requested data format is supported
+        const accepts = req.accepts(["application/json"]);
+        if (accepts) {
+            // Verify that valid JWT was provided
+            if (req.headers.authorization !== undefined) {
+                const jwt = parseJWT(req.headers.authorization);
+                const jwt_data = await verify(jwt).catch(console.error);
+                
+                if (jwt_data === undefined || jwt_data === null) {
+                    res.status(400).json({"Error": "Invalid JWT"});
+                
+                } else {
+                    // Get workout and exercise from Datastore
+                    const workout = await getWorkout(req);
+                    const exercise = await ex.getExercise(req);
+                    if (workout === undefined || workout === null) {
+                        res.status(404).json({ "Error": "No workout with this workout_id exists" });
+                    
+                    } else if (exercise === undefined || exercise === null) {
+                        res.status(404).json({ "Error": "No exercise with this exercise_id exists" });
+                    
+                    // Verify user is authorized to access this workout
+                    } else if (workout.owner !== jwt_data.sub) {
+                        res.status(403).json({"Error": "Unauthorized"});
+                    
+                    } else {
+                        // Add the exercise to the workout
+                        await addExercisetoWorkout(req, workout, exercise);
+                        res.status(200).end();
+                    }
+                }    
+            } else {
+                res.status(401).json({"Error": "Unauthenticated"});
+            }
+        } else {
+            res.status(406).json({ "Error": "Server only supports 'application/json'"});
+        }
+});
+
+router.delete('/:workout_id/exercises/:exercise_id', async function (req, res) {
+    res.send("hi")
+});
+
+module.exports = {
+    router:router
+};

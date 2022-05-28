@@ -242,6 +242,7 @@ async function getExercises(req){
 }
 
 // Get a single exercise from Datastore
+//module.exports.getExercise = 
 async function getExercise(req){
     // Get key from ID and get exercise from Datastore
     const key = datastore.key([EXERCISE, parseInt(req.params.exercise_id, 10)]);
@@ -259,7 +260,8 @@ async function getExercise(req){
         }
     } catch (err) {
         console.error('ERROR:', err);
-    } 
+    }
+    return;
 }
 
 // Edit all attributes of an exercise in Datastore
@@ -455,4 +457,7 @@ router.post('/:exercise_id', function (req, res) {
     res.status(405).end();
 });
 
-module.exports = router;
+module.exports = {
+    router:router,
+    getExercise:getExercise
+};

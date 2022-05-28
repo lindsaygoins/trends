@@ -22,10 +22,10 @@ app.use(bodyParser.json());
 app.use('/', require('./users/login'));
 
 // Exercises
-app.use('/api/exercises', require('./exercises/api'));
+app.use('/api/exercises', require('./exercises/api').router);
 
 // Workouts
-app.use('/api/workouts', require('./workouts/api'));
+app.use('/api/workouts', require('./workouts/api').router);
 
 // Start the server
 const port = process.env.PORT || 8080;
