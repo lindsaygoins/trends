@@ -21,7 +21,7 @@ app.use(bodyParser.json());
 app.enable('trust proxy');
 
 // Users
-app.use('/', require('./users/login'));
+app.use('/api', require('./users/login'));
 
 // Exercises
 app.use('/api/exercises', require('./exercises/api').router);

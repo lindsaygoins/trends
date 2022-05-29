@@ -581,7 +581,7 @@ router.put('/:workout_id/exercises/:exercise_id', async function (req, res) {
             } else {
                 // Add the exercise to the workout
                 await addExercisetoWorkout(req, workout, exercise);
-                res.status(200).end();
+                res.status(204).end();
             }
         }    
     } else {
