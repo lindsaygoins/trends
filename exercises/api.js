@@ -191,6 +191,28 @@ async function addStrengthExercise(req) {
     }
 }
 
+// async function addCardioExercise(body) {
+//     // Create key and store data
+//     const key = datastore.key(EXERCISE);
+//     const entity = {
+//       key: key,
+//       data: { 'name': body.name,
+//               'distance': body.distance,
+//               'workouts': []
+//       }
+//     };
+
+//     try {
+//         // Save exercise to Datastore
+//         await datastore.save(entity);
+//         entity.data.id = key.id;
+//         entity.data.self = req.protocol + "://" + req.get('host') + req.baseUrl + '/' + key.id;
+//         return entity.data;
+//     } catch (err) {
+//         console.error('ERROR:', err);
+//     }
+// }
+
 // Get all exercises from Datastore
 async function getExercises(req){
     try {

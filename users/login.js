@@ -56,13 +56,6 @@ async function getUser(user_id) {
     return entity[0];
 }
 
-// Get all users from Datastore
-async function getUsers() {
-    const query = datastore.createQuery(USER);
-    const entity = await datastore.runQuery(query);
-    return entity[0];
-}
-
 // Login page
 router.get('/', function (req, res) {
     res.render('home');
@@ -86,19 +79,6 @@ router.post('/', async function (req, res) {
                     id: user_id
                  }
     res.render('user', data)
-});
-
-// Get all users
-router.get('/users', async function (req, res) {
-    // Verify requested data format is supported
-    const accepts = req.accepts(["application/json"]);
-    if (accepts) {
-        // Get users from Datastore
-        const users = await getUsers();
-        res.status(200).send(users);
-    } else {
-        res.status(406).json({ "Error": "Server only supports 'application/json'"});
-    }
 });
 
 module.exports = router;
